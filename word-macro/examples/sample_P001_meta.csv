@@ -1,0 +1,11 @@
+field,value
+session_id,20261028_150000_P001
+participant_id,P001
+task_id,A
+started_at_local,2026-10-28 15:00:00
+event_count,18
+export_folder,C:\Users\...\Documents\KeystrokeSessions
+reference_text,"Analiza dynamiki wprowadzania tekstu..."
+typed_text,Analiza
+char_count_typed,7
+char_count_reference,280
