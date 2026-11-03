@@ -1,100 +1,61 @@
 # Analiza dynamiki pisania (keystroke dynamics)
 
-Aplikacja WEB do rejestracji i analizy charakteru wprowadzania tekstu na klawiaturze (mikroczasy `keydown`/`keyup`, digrafy, tempo).  
-Zawiera też pakiet makra Word (`word-macro/`).
+Aplikacja WEB do rejestracji dynamiki klawiatury (`keydown`/`keyup`) + makro Word (`word-macro/`).
 
-Domena docelowa (konfigurujesz w `.env`): **pismo.iit.sggw.pl**
+**Domena:** `pismo.iit.sggw.pl`  
+**Repo:** https://github.com/klipka78/analiza-dynamiki-pisania
+
+## Uruchomienie na serwerze (Docker) — zalecane
+
+Pełna instrukcja: [`deploy/SERVER.md`](deploy/SERVER.md)
+
+```bash
+cd /home/a304500/public_html
+git clone https://github.com/klipka78/analiza-dynamiki-pisania.git pismo
+cd pismo
+cp .env.example .env
+nano .env                    # ustaw ADMIN_TOKEN
+docker compose up -d --build
+```
+
+Aplikacja nasłuchuje na `127.0.0.1:8080`. Apache proxuje domenę:
+
+```bash
+sudo cp deploy/apache-docker-vhost.conf /etc/apache2/sites-available/pismo.iit.sggw.pl.conf
+sudo a2enmod proxy proxy_http headers remoteip
+sudo a2ensite pismo.iit.sggw.pl.conf
+sudo systemctl reload apache2
+```
+
+- Uczestnicy: https://pismo.iit.sggw.pl/
+- Badacz: https://pismo.iit.sggw.pl/admin (`ADMIN_TOKEN` z `.env`)
+- Health: https://pismo.iit.sggw.pl/api/health
 
 ## Stack
 
-- **Frontend:** React + Vite (TypeScript)
-- **Backend:** FastAPI + SQLAlchemy + SQLite
-- **Deploy:** Docker Compose na Ubuntu (nginx → API)
+| Warstwa | Technologia |
+|---------|-------------|
+| Frontend | React + Vite → nginx |
+| Backend | FastAPI + SQLite |
+| Deploy | Docker Compose |
 
-## Szybki start lokalnie (Docker)
+## `.env` (ważne)
 
-```bash
-cp .env.example .env
-# edytuj DOMAIN, PUBLIC_URL, ADMIN_TOKEN
-
-docker compose up -d --build
-```
-
-Wejdź na `http://localhost` (lub port z `HOST_PORT`).
-
-- Sesja uczestnika: `/`
-- Panel badacza: `/admin` (token = `ADMIN_TOKEN`)
-
-## Ubuntu (serwer)
-
-```bash
-sudo bash deploy/ubuntu-setup.sh
-sudo mkdir -p /opt/pismo && cd /opt/pismo
-git clone <URL-repo> .
-cp .env.example .env
-nano .env   # DOMAIN=pismo.iit.sggw.pl itd.
-docker compose up -d --build
-```
-
-### DNS / reverse proxy
-
-1. Ustaw rekord **A/AAAA** dla `pismo.iit.sggw.pl` na IP serwera.
-2. Na hoście wystaw port `HOST_PORT` (domyślnie 80) albo postaw zewnętrzny nginx/Caddy z TLS:
-
-Przykład Caddy (osobno na hoście):
-
-```
-pismo.iit.sggw.pl {
-  reverse_proxy localhost:80
-}
-```
-
-Albo certbot + nginx proxy na kontener `web`.
-
-## API (skrót)
-
-| Metoda | Ścieżka | Opis |
-|--------|---------|------|
-| GET | `/api/health` | status |
-| GET | `/api/tasks` | teksty A/B/C |
-| POST | `/api/sessions` | zapis sesji + eventów |
-| GET | `/api/sessions` | lista (header `X-Admin-Token`) |
-| GET | `/api/sessions/{uid}/export.csv` | CSV sesji |
-| GET | `/api/export/all.csv` | wszystkie zdarzenia |
-
-Format CSV jest zgodny koncepcyjnie z eksportem makra Word.
-
-## Zmienne `.env`
-
-| Zmienna | Przykład |
-|---------|----------|
+| Zmienna | Opis |
+|---------|------|
 | `DOMAIN` | `pismo.iit.sggw.pl` |
 | `PUBLIC_URL` | `https://pismo.iit.sggw.pl` |
-| `ADMIN_TOKEN` | silne hasło |
-| `HOST_PORT` | `80` |
-| `DATABASE_URL` | `sqlite:////data/keystroke.db` |
+| `ADMIN_TOKEN` | hasło panelu badacza |
+| `HOST_PORT` | `8080` (Apache → ten port) |
+| `HOST_BIND` | `127.0.0.1` |
 
-## Dev bez Dockera
+## Lokalnie (dev)
 
 ```bash
-# terminal 1
-cd backend
-python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-# DATABASE_URL=sqlite:///./keystroke.db
-uvicorn app.main:app --reload --port 8000
-
-# terminal 2
-cd frontend
-npm install
-npm run dev
+docker compose up -d --build
+# albo osobno: backend uvicorn + frontend npm run dev
 ```
 
 ## Makro Word
 
-Folder `word-macro/` — UserForm + eksport CSV. Instrukcja w `word-macro/README.md`.
-
-## RODO / etyka badania
-
-Nie zbieraj haseł ani treści wrażliwych. Uczestnicy dostają anonimowe ID.  
-Teksty zadań są kontrolne (copy-task).
+Folder `word-macro/` — zobacz `word-macro/README.md`.
