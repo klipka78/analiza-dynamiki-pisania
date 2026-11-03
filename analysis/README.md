@@ -1,14 +1,19 @@
-# Analiza — rozpoznawanie użytkownika
+# Analiza lokalna (PC z GPU)
 
-Skrypt buduje cechy z eksportu CSV systemu **pismo** i uczy klasyfikator (Random Forest / SVM / k-NN).
+Serwer **pismo** tylko zbiera dane. Trening i rozpoznawanie uruchamiasz **na swoim komputerze** (RTX / CUDA).
 
-## 1. Pobierz dane z systemu
+## Workflow
 
-1. Wejdź na https://pismo.iit.sggw.pl/admin  
-2. Podaj `ADMIN_TOKEN`  
-3. **Eksport wszystkich zdarzeń** → zapisz jako `all_events.csv`
+```text
+[pismo.iit.sggw.pl]  →  all_events.csv  →  [Twój PC + GPU]
+     zbieranie              eksport           analysis/recognize_user.py
+```
 
-Albo:
+### 1. Pobierz CSV z serwera
+
+Panel: https://pismo.iit.sggw.pl/admin → **Eksport wszystkich zdarzeń**
+
+albo:
 
 ```bash
 curl -fsS -H "X-Admin-Token: TWOJ_TOKEN" \
@@ -16,49 +21,45 @@ curl -fsS -H "X-Admin-Token: TWOJ_TOKEN" \
   -o all_events.csv
 ```
 
-Wymagane kolumny: `session_uid, participant_id, task_id, seq, elapsed_ms, event_type, code, key, ...`
-
-## 2. Instalacja
+### 2. Środowisko na PC
 
 ```bash
 cd analysis
 python -m venv .venv
-# Windows: .venv\Scripts\activate
-source .venv/bin/activate
+.venv\Scripts\activate          # Windows
 pip install -r requirements.txt
 ```
 
-## 3. Uruchomienie
+Sprawdź GPU:
 
 ```bash
-# dane rzeczywiste
-python recognize_user.py --csv all_events.csv --model all --out-dir results
-
-# smoke test bez serwera
-python recognize_user.py --demo --model all --out-dir results
+python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
 ```
 
-Wyniki w `results/`:
+U Ciebie powinno być: `True` + `NVIDIA GeForce RTX …`
 
-- `confusion_rf.png` / `svm` / `knn` — macierz pomyłek  
-- `metrics_*.json` — accuracy, F1  
-- `report_*.txt` — classification report  
-- `session_features.csv` — wektory cech per sesja  
+### 3. Uruchomienie
 
-## 4. Co liczy skrypt
+```bash
+# GPU — sieć MLP (PyTorch + CUDA)
+python recognize_user.py --csv all_events.csv --model mlp --device cuda
 
-| Cecha | Opis |
-|-------|------|
-| hold_* | średni czas przytrzymania klawisza |
-| dig_* / flight_* | latencje digrafów (kolejne down) |
-| wpm | tempo pisania |
-| backspace_pct | udział Backspace |
+# porównanie: sklearn (CPU) + MLP (GPU)
+python recognize_user.py --csv all_events.csv --model all --device auto
 
-Split **po sesjach** (`GroupShuffleSplit`) — ta sama sesja nie jest w train i test naraz.  
-Etykieta = `participant_id`.
+# smoke test bez serwera
+python recognize_user.py --demo --model mlp --device cuda
+```
 
-## 5. Zalecenia badawcze
+| Model | Gdzie liczy |
+|-------|-------------|
+| `rf`, `svm`, `knn` | CPU (scikit-learn) |
+| `mlp` | **GPU** (PyTorch CUDA), fallback CPU |
 
-- ≥ 5–10 sesji na osobę (teksty A/B/C)  
-- stałe ID uczestnika  
-- `--min-sessions-per-user 2` (domyślnie) — podnieś przy większych danych  
+Wyniki: `results/confusion_*.png`, `metrics_*.json`, `session_features.csv`
+
+## Uwagi
+
+- Przy małej liczbie sesji RF na CPU często wystarcza; GPU przyda się przy większym zbiorze / MLP / przyszłym LSTM na sekwencjach.
+- Split zawsze **po sesjach** — ta sama sesja nie jest w train i test.
+- Etykieta = `participant_id` z systemu.
