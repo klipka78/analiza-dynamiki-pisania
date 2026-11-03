@@ -44,3 +44,31 @@ class SessionCreated(BaseModel):
 
 class TaskTexts(BaseModel):
     tasks: dict[str, str]
+
+
+class IdentifyRequest(BaseModel):
+    events: list[KeystrokeEventIn] = Field(default_factory=list)
+    typedText: str = ""
+
+
+class IdentifyHit(BaseModel):
+    participant_id: str
+    score: float
+
+
+class IdentifyResult(BaseModel):
+    predicted_participant_id: str
+    ranking: list[IdentifyHit]
+    n_events: int
+    model_users: int
+    model_sessions: int
+
+
+class IdentifyStatus(BaseModel):
+    ready: bool
+    n_users: int
+    n_sessions: int
+    users: list[str]
+    sessions_per_user: dict[str, int]
+    min_sessions_per_user: int
+    message: str

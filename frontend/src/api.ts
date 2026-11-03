@@ -44,3 +44,40 @@ export function exportSessionUrl(sessionUid: string): string {
 export function exportAllUrl(): string {
   return `/api/export/all.csv`;
 }
+
+export type IdentifyStatus = {
+  ready: boolean;
+  n_users: number;
+  n_sessions: number;
+  users: string[];
+  sessions_per_user: Record<string, number>;
+  min_sessions_per_user: number;
+  message: string;
+};
+
+export type IdentifyResult = {
+  predicted_participant_id: string;
+  ranking: { participant_id: string; score: number }[];
+  n_events: number;
+  model_users: number;
+  model_sessions: number;
+};
+
+export async function fetchIdentifyStatus(): Promise<IdentifyStatus> {
+  const res = await fetch("/api/identify/status");
+  if (!res.ok) throw new Error(await getError(res));
+  return res.json();
+}
+
+export async function identifySession(payload: {
+  events: import("./types").KeystrokeEvent[];
+  typedText: string;
+}): Promise<IdentifyResult> {
+  const res = await fetch("/api/identify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(await getError(res));
+  return res.json();
+}

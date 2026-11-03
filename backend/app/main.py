@@ -9,8 +9,17 @@ from sqlalchemy.orm import Session
 
 from .config import get_settings
 from .database import get_db, init_db
+from .identify_service import identify_events, identify_status, invalidate_cache
 from .models import EventRecord, SessionRecord
-from .schemas import SessionCreate, SessionCreated, SessionSummary, TaskTexts
+from .schemas import (
+    IdentifyRequest,
+    IdentifyResult,
+    IdentifyStatus,
+    SessionCreate,
+    SessionCreated,
+    SessionSummary,
+    TaskTexts,
+)
 from .tasks import TASK_TEXTS
 
 settings = get_settings()
@@ -103,7 +112,23 @@ def create_session(payload: SessionCreate, db: Session = Depends(get_db)) -> Ses
 
     db.commit()
     db.refresh(rec)
+    invalidate_cache()
     return SessionCreated(id=rec.id, session_uid=rec.session_uid, event_count=rec.event_count)
+
+
+@app.get("/api/identify/status", response_model=IdentifyStatus)
+def get_identify_status(db: Session = Depends(get_db)) -> IdentifyStatus:
+    return IdentifyStatus(**identify_status(db))
+
+
+@app.post("/api/identify", response_model=IdentifyResult)
+def post_identify(payload: IdentifyRequest, db: Session = Depends(get_db)) -> IdentifyResult:
+    try:
+        raw = [e.model_dump() for e in payload.events]
+        result = identify_events(db, raw)
+        return IdentifyResult(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @app.get("/api/sessions", response_model=list[SessionSummary])

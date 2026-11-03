@@ -1,6 +1,7 @@
 import { NavLink, Route, Routes } from "react-router-dom";
 import AdminPage from "./pages/AdminPage";
 import CapturePage from "./pages/CapturePage";
+import IdentifyPage from "./pages/IdentifyPage";
 
 export default function App() {
   return (
@@ -16,6 +17,9 @@ export default function App() {
           <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : undefined)}>
             Sesja uczestnika
           </NavLink>
+          <NavLink to="/identify" className={({ isActive }) => (isActive ? "active" : undefined)}>
+            Identyfikuj
+          </NavLink>
           <NavLink to="/admin" className={({ isActive }) => (isActive ? "active" : undefined)}>
             Panel badacza
           </NavLink>
@@ -23,6 +27,7 @@ export default function App() {
       </header>
       <Routes>
         <Route path="/" element={<CapturePage />} />
+        <Route path="/identify" element={<IdentifyPage />} />
         <Route path="/admin" element={<AdminPage />} />
       </Routes>
     </div>

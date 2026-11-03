@@ -141,7 +141,8 @@ export default function CapturePage() {
     <section className="panel">
       <p className="hint">
         Przepisuj tekst naturalnym tempem. Poprawki (Backspace) są dozwolone.
-        Rejestrowane są wyłącznie czasy i kody klawiszy w tej sesji.
+        Zrób <strong>kilka sesji</strong> z tym samym ID (różne teksty / dni) — potem w
+        zakładce <strong>Identyfikuj</strong> system sprawdzi, czy rozpozna autora.
       </p>
 
       <div className="id-box" style={{ marginTop: "1rem" }}>
