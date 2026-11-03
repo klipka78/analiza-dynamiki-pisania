@@ -56,6 +56,11 @@ docker compose up -d --build
 # albo osobno: backend uvicorn + frontend npm run dev
 ```
 
+## Dokumentacja systemu
+
+Pełny opis (cel, technologie, składowanie danych, SQLite vs PostgreSQL, analiza ML / rozpoznawanie autora):  
+**[`docs/SYSTEM.md`](docs/SYSTEM.md)**
+
 ## Makro Word
 
 Folder `word-macro/` — zobacz `word-macro/README.md`.
