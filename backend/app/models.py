@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -21,6 +21,13 @@ class SessionRecord(Base):
     event_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
+    # Warunki sesji / protokół
+    environment: Mapped[str] = mapped_column(String(32), default="web")  # web | word
+    keyboard_type: Mapped[str] = mapped_column(String(32), default="")  # laptop | external_usb | other
+    dominant_hand: Mapped[str] = mapped_column(String(16), default="")  # left | right | both
+    fatigue: Mapped[int] = mapped_column(Integer, default=0)  # 1–5, 0 = nie podano
+    duration_ms: Mapped[float] = mapped_column(Float, default=0.0)
+
     events: Mapped[list["EventRecord"]] = relationship(
         back_populates="session",
         cascade="all, delete-orphan",
@@ -34,7 +41,7 @@ class EventRecord(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id", ondelete="CASCADE"), index=True)
     seq: Mapped[int] = mapped_column(Integer)
-    elapsed_ms: Mapped[str] = mapped_column(String(32))  # store as invariant decimal string
+    elapsed_ms: Mapped[str] = mapped_column(String(32))
     event_type: Mapped[str] = mapped_column(String(8))
     code: Mapped[str] = mapped_column(String(64), default="")
     key: Mapped[str] = mapped_column(String(64), default="")

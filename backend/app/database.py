@@ -26,5 +26,8 @@ def get_db() -> Generator[Session, None, None]:
 
 def init_db() -> None:
     from . import models  # noqa: F401
+    from .migrate import migrate_schema
 
     Base.metadata.create_all(bind=engine)
+    if settings.database_url.startswith("sqlite"):
+        migrate_schema(engine)

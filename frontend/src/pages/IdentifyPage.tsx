@@ -1,17 +1,31 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { fetchIdentifyStatus, fetchTasks, identifySession, type IdentifyResult, type IdentifyStatus } from "../api";
+import {
+  fetchIdentifyStatus,
+  fetchTasks,
+  identifySession,
+  verifySession,
+  type IdentifyResult,
+  type IdentifyStatus,
+  type VerifyResult,
+} from "../api";
+import { loadOrCreateParticipantId } from "../participantId";
 import type { KeystrokeEvent } from "../types";
 
 type Phase = "idle" | "capturing" | "done";
+type Mode = "identify" | "verify";
 
 export default function IdentifyPage() {
   const [tasks, setTasks] = useState<Record<string, string>>({});
   const [taskId, setTaskId] = useState("A");
   const [typed, setTyped] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
+  const [mode, setMode] = useState<Mode>("identify");
+  const [claimedId, setClaimedId] = useState(() => loadOrCreateParticipantId());
   const [eventCount, setEventCount] = useState(0);
+  const [elapsedSec, setElapsedSec] = useState(0);
   const [status, setStatus] = useState<IdentifyStatus | null>(null);
-  const [result, setResult] = useState<IdentifyResult | null>(null);
+  const [idResult, setIdResult] = useState<IdentifyResult | null>(null);
+  const [verResult, setVerResult] = useState<VerifyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -21,6 +35,8 @@ export default function IdentifyPage() {
   const areaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const reference = tasks[taskId] || "";
+  const minEvents = status?.min_events ?? 40;
+  const minDurationSec = Math.round((status?.min_duration_ms ?? 15000) / 1000);
 
   function refreshStatus() {
     fetchIdentifyStatus()
@@ -43,6 +59,14 @@ export default function IdentifyPage() {
     capturingRef.current = phase === "capturing";
   }, [phase]);
 
+  useEffect(() => {
+    if (phase !== "capturing" || startRef.current == null) return;
+    const id = window.setInterval(() => {
+      if (startRef.current != null) setElapsedSec((performance.now() - startRef.current) / 1000);
+    }, 200);
+    return () => window.clearInterval(id);
+  }, [phase]);
+
   function pushEvent(type: "down" | "up", e: KeyboardEvent) {
     if (!capturingRef.current) return;
     if (startRef.current == null) startRef.current = performance.now();
@@ -61,10 +85,12 @@ export default function IdentifyPage() {
 
   function startCapture() {
     setError(null);
-    setResult(null);
+    setIdResult(null);
+    setVerResult(null);
     eventsRef.current = [];
     startRef.current = null;
     setEventCount(0);
+    setElapsedSec(0);
     setTyped("");
     setPhase("capturing");
     setTimeout(() => areaRef.current?.focus(), 0);
@@ -74,22 +100,31 @@ export default function IdentifyPage() {
     setPhase("done");
   }
 
-  async function runIdentify() {
-    if (eventsRef.current.length < 20) {
-      setError("Za mało danych — napisz dłuższy fragment (Start → pisz → Stop).");
+  async function run() {
+    if (!status?.ready) {
+      setError("Model niegotowy — zbierz więcej sesji enroll (Sesja uczestnika).");
+      return;
+    }
+    if (eventsRef.current.length < minEvents || elapsedSec < minDurationSec) {
+      setError(`Za krótka próbka (min. ${minDurationSec} s i ${minEvents} zdarzeń).`);
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      const res = await identifySession({
-        events: eventsRef.current,
-        typedText: typed,
-      });
-      setResult(res);
-      refreshStatus();
+      if (mode === "identify") {
+        setIdResult(await identifySession({ events: eventsRef.current, typedText: typed }));
+      } else {
+        setVerResult(
+          await verifySession({
+            claimedParticipantId: claimedId.trim(),
+            events: eventsRef.current,
+            typedText: typed,
+          })
+        );
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Błąd identyfikacji");
+      setError(e instanceof Error ? e.message : "Błąd");
     } finally {
       setBusy(false);
     }
@@ -101,40 +136,52 @@ export default function IdentifyPage() {
         Identyfikuj uczestnika na podstawie dynamiki pisania
       </h2>
       <p className="hint">
-        Najpierw zbierz <strong>kilka sesji</strong> od każdej osoby (to samo ID na stronie
-        „Sesja uczestnika”). Potem tutaj wpisz próbkę <em>bez</em> podawania ID — system
-        zgadnie, kto pisał.
+        <strong>1:N Identyfikacja</strong> — kto pisał?{" "}
+        <strong>1:1 Weryfikacja</strong> — czy to nadal wskazane ID? Przy niskiej pewności:
+        „niezidentyfikowano” / odrzucenie.
       </p>
 
       {status && (
         <div className={`status ${status.ready ? "ok" : ""}`} style={{ marginTop: "1rem" }}>
           {status.ready ? (
             <>
-              Model gotowy: <strong>{status.n_users}</strong> uczestników,{" "}
-              <strong>{status.n_sessions}</strong> sesji treningowych.
+              Model gotowy: {status.n_users} osób, {status.n_sessions} sesji. Próg pewności:{" "}
+              {(status.confidence_threshold * 100).toFixed(0)}%.
             </>
           ) : (
-            <>
-              Model jeszcze niegotowy. {status.message}
-              <br />
-              Potrzeba ≥{status.min_sessions_per_user} sesji na osobę (obecnie:{" "}
-              {Object.entries(status.sessions_per_user)
-                .map(([u, n]) => `${u}×${n}`)
-                .join(", ") || "brak"}
-              ).
-            </>
+            <>Model niegotowy. {status.message}</>
           )}
         </div>
       )}
 
+      <div className="actions" style={{ marginTop: "1rem" }}>
+        <button
+          type="button"
+          className={mode === "identify" ? undefined : "secondary"}
+          onClick={() => setMode("identify")}
+        >
+          Identyfikacja 1:N
+        </button>
+        <button
+          type="button"
+          className={mode === "verify" ? undefined : "secondary"}
+          onClick={() => setMode("verify")}
+        >
+          Weryfikacja 1:1
+        </button>
+      </div>
+
+      {mode === "verify" && (
+        <label style={{ marginTop: "1rem", maxWidth: 360 }}>
+          Claimed ID (czy to nadal ta osoba?)
+          <input value={claimedId} onChange={(e) => setClaimedId(e.target.value.toUpperCase())} />
+        </label>
+      )}
+
       <div className="grid" style={{ marginTop: "1rem" }}>
         <label>
-          Tekst do przepisania (próbka testowa)
-          <select
-            value={taskId}
-            disabled={phase === "capturing"}
-            onChange={(e) => setTaskId(e.target.value)}
-          >
+          Tekst próbki
+          <select value={taskId} disabled={phase === "capturing"} onChange={(e) => setTaskId(e.target.value)}>
             {Object.keys(tasks).map((k) => (
               <option key={k} value={k}>
                 Tekst {k}
@@ -150,7 +197,7 @@ export default function IdentifyPage() {
       </label>
 
       <label style={{ marginTop: "1rem" }}>
-        Pole wpisywania (bez podawania ID)
+        Pole wpisywania
         <textarea
           ref={areaRef}
           className="typed"
@@ -159,7 +206,7 @@ export default function IdentifyPage() {
           onChange={(e) => setTyped(e.target.value)}
           onKeyDown={(e) => pushEvent("down", e)}
           onKeyUp={(e) => pushEvent("up", e)}
-          placeholder={phase === "capturing" ? "Pisz tutaj…" : "Start → przepisz tekst → Stop → Identyfikuj"}
+          placeholder="Start → przepisz → Stop → uruchom"
         />
       </label>
 
@@ -167,16 +214,11 @@ export default function IdentifyPage() {
         <button type="button" onClick={startCapture} disabled={phase === "capturing"}>
           Start
         </button>
-        <button
-          type="button"
-          className="secondary"
-          onClick={stopCapture}
-          disabled={phase !== "capturing"}
-        >
+        <button type="button" className="secondary" onClick={stopCapture} disabled={phase !== "capturing"}>
           Stop
         </button>
-        <button type="button" onClick={runIdentify} disabled={busy || eventCount < 20}>
-          {busy ? "Identyfikacja…" : "Identyfikuj"}
+        <button type="button" onClick={run} disabled={busy || !status?.ready}>
+          {busy ? "Liczenie…" : mode === "identify" ? "Identyfikuj" : "Weryfikuj"}
         </button>
         <button type="button" className="secondary" onClick={refreshStatus}>
           Odśwież model
@@ -184,31 +226,43 @@ export default function IdentifyPage() {
       </div>
 
       <div className="meta">
-        <span>Status: {phase}</span>
-        <span>Zdarzenia: {eventCount}</span>
+        <span>
+          Czas: {elapsedSec.toFixed(1)}/{minDurationSec} s
+        </span>
+        <span>
+          Zdarzenia: {eventCount}/{minEvents}
+        </span>
       </div>
 
       {error && <div className="status error">{error}</div>}
 
-      {result && (
-        <div className="status ok" style={{ marginTop: "1rem" }}>
-          <p style={{ margin: "0 0 0.75rem" }}>
-            Najbardziej podobny uczestnik:{" "}
-            <strong style={{ fontSize: "1.25rem" }}>{result.predicted_participant_id}</strong>
-          </p>
-          <p className="hint" style={{ margin: "0 0 0.5rem" }}>
-            Ranking (prawdopodobieństwo / podobieństwo):
-          </p>
+      {idResult && (
+        <div className={`status ${idResult.identified ? "ok" : "error"}`} style={{ marginTop: "1rem" }}>
+          <p style={{ margin: "0 0 0.5rem" }}>{idResult.message}</p>
+          {idResult.identified && (
+            <p style={{ margin: "0 0 0.75rem", fontSize: "1.2rem" }}>
+              <strong>{idResult.predicted_participant_id}</strong> (
+              {(idResult.confidence * 100).toFixed(1)}%)
+            </p>
+          )}
           <ol style={{ margin: 0, paddingLeft: "1.25rem" }}>
-            {result.ranking.map((h) => (
+            {idResult.ranking.map((h) => (
               <li key={h.participant_id}>
                 <code>{h.participant_id}</code> — {(h.score * 100).toFixed(1)}%
               </li>
             ))}
           </ol>
-          <p className="hint" style={{ margin: "0.75rem 0 0" }}>
-            Na podstawie {result.n_events} zdarzeń; model: {result.model_users} osób /{" "}
-            {result.model_sessions} sesji.
+        </div>
+      )}
+
+      {verResult && (
+        <div className={`status ${verResult.accepted ? "ok" : "error"}`} style={{ marginTop: "1rem" }}>
+          <p style={{ margin: 0, fontSize: "1.15rem" }}>
+            <strong>{verResult.accepted ? "TAK" : "NIE"}</strong> — {verResult.message}
+          </p>
+          <p className="hint" style={{ margin: "0.5rem 0 0" }}>
+            Score {verResult.claimed_participant_id}: {(verResult.score * 100).toFixed(1)}% (próg{" "}
+            {(verResult.threshold * 100).toFixed(0)}%)
           </p>
         </div>
       )}

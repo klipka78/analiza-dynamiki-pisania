@@ -17,6 +17,11 @@ export type SessionPayload = {
   keyboardLayout: string;
   language: string;
   userAgent: string;
+  environment: string;
+  keyboardType: string;
+  dominantHand: string;
+  fatigue: number;
+  durationMs: number;
   events: KeystrokeEvent[];
 };
 
@@ -29,4 +34,9 @@ export type SessionSummary = {
   created_at: string;
   typed_len: number;
   reference_len: number;
+  environment?: string;
+  keyboard_type?: string;
+  dominant_hand?: string;
+  fatigue?: number;
+  duration_ms?: number;
 };
