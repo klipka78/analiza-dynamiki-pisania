@@ -190,6 +190,28 @@ td {
   line-height: 1.45;
 }
 
+.id-box {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  background: #f7f4ec;
+}
+
+.id-box label input {
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.id-hint {
+  margin: 0;
+}
+
+.id-hint strong {
+  color: var(--ink);
+}
+
 @media (max-width: 720px) {
   .grid {
     grid-template-columns: 1fr;

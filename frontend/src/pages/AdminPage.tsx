@@ -42,10 +42,7 @@ export default function AdminPage() {
 
   return (
     <section className="panel">
-      <p className="hint">
-        Panel badacza: lista sesji i eksport CSV (ten sam format co makro Word).
-        Token ustawiasz w pliku <code>.env</code> jako <code>ADMIN_TOKEN</code>.
-      </p>
+      <p className="hint">Panel badacza: lista sesji i eksport CSV</p>
 
       <label style={{ marginTop: "1rem", maxWidth: 360 }}>
         Token admina

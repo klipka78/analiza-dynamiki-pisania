@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { fetchTasks, submitSession } from "../api";
+import {
+  generateParticipantId,
+  loadOrCreateParticipantId,
+  saveParticipantId,
+} from "../participantId";
 import type { KeystrokeEvent } from "../types";
 
 type Phase = "idle" | "capturing" | "done";
 
 export default function CapturePage() {
   const [tasks, setTasks] = useState<Record<string, string>>({});
-  const [participantId, setParticipantId] = useState("P001");
+  const [participantId, setParticipantId] = useState(() => loadOrCreateParticipantId());
   const [taskId, setTaskId] = useState("A");
   const [typed, setTyped] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
@@ -36,6 +41,20 @@ export default function CapturePage() {
     capturingRef.current = phase === "capturing";
   }, [phase]);
 
+  function onParticipantIdChange(value: string) {
+    const next = value.trim().toUpperCase();
+    setParticipantId(next);
+    if (next) saveParticipantId(next);
+  }
+
+  function newRandomId() {
+    if (phase === "capturing") return;
+    const id = generateParticipantId();
+    setParticipantId(id);
+    saveParticipantId(id);
+    setMessage(`Wygenerowano nowe ID: ${id}. Zapamiętaj je na kolejne próby.`);
+  }
+
   function pushEvent(type: "down" | "up", e: KeyboardEvent) {
     if (!capturingRef.current) return;
     if (startRef.current == null) startRef.current = performance.now();
@@ -55,9 +74,10 @@ export default function CapturePage() {
 
   function startCapture() {
     if (!participantId.trim()) {
-      setError("Podaj identyfikator uczestnika.");
+      setError("Brak ID uczestnika — wygeneruj lub wpisz kod.");
       return;
     }
+    saveParticipantId(participantId.trim());
     setError(null);
     setMessage(null);
     eventsRef.current = [];
@@ -91,8 +111,10 @@ export default function CapturePage() {
     setSaving(true);
     setError(null);
     try {
+      const pid = participantId.trim();
+      saveParticipantId(pid);
       const result = await submitSession({
-        participantId: participantId.trim(),
+        participantId: pid,
         taskId,
         referenceText: reference,
         typedText: typed,
@@ -101,7 +123,10 @@ export default function CapturePage() {
         userAgent: navigator.userAgent || "",
         events: eventsRef.current,
       });
-      setMessage(`Zapisano sesję ${result.session_uid} (${result.event_count} zdarzeń).`);
+      setMessage(
+        `Zapisano sesję ${result.session_uid} (${result.event_count} zdarzeń). ` +
+          `Twoje ID: ${pid} — użyj tego samego kodu przy następnej próbie.`
+      );
       setPhase("idle");
       eventsRef.current = [];
       setEventCount(0);
@@ -119,16 +144,33 @@ export default function CapturePage() {
         Rejestrowane są wyłącznie czasy i kody klawiszy w tej sesji.
       </p>
 
-      <div className="grid" style={{ marginTop: "1rem" }}>
+      <div className="id-box" style={{ marginTop: "1rem" }}>
         <label>
-          ID uczestnika
+          Twój kod uczestnika
           <input
             value={participantId}
             disabled={phase === "capturing"}
-            onChange={(e) => setParticipantId(e.target.value)}
+            onChange={(e) => onParticipantIdChange(e.target.value)}
             autoComplete="off"
+            spellCheck={false}
           />
         </label>
+        <button
+          type="button"
+          className="secondary"
+          onClick={newRandomId}
+          disabled={phase === "capturing"}
+        >
+          Losuj nowe ID
+        </button>
+        <p className="hint id-hint">
+          Kod jest losowy (np. <code>U-K7M2QX</code>) i zapisywany w tej przeglądarce.
+          <strong> Zapamiętaj go</strong> albo zapisz — przy kolejnej próbie (inny tekst / inny
+          dzień) wpisz <strong>to samo ID</strong>, żeby połączyć sesje w analizie.
+        </p>
+      </div>
+
+      <div className="grid" style={{ marginTop: "1rem" }}>
         <label>
           Tekst zadania
           <select
@@ -185,6 +227,7 @@ export default function CapturePage() {
       </div>
 
       <div className="meta">
+        <span>ID: {participantId || "—"}</span>
         <span>Status: {phase}</span>
         <span>Zdarzenia: {eventCount}</span>
         <span>Znaków: {typed.length}</span>
