@@ -17,3 +17,9 @@ word-macro/test.docm
 word-macro/~$*
 word-macro/*.frx
 frontend/node_modules/
+analysis/.venv/
+analysis/results/
+analysis/data/
+__pycache__/
+*.pyc
+

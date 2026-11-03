@@ -59,7 +59,20 @@ docker compose up -d --build
 ## Dokumentacja systemu
 
 Pełny opis (cel, technologie, składowanie danych, SQLite vs PostgreSQL, analiza ML / rozpoznawanie autora):  
-**[`docs/SYSTEM.md`](docs/SYSTEM.md)**
+**[`docs/SYSTEM.md`](docs/SYSTEM.md)** · Word: [`docs/SYSTEM.docx`](docs/SYSTEM.docx)
+
+## Analiza ML (rozpoznawanie użytkownika)
+
+Folder [`analysis/`](analysis/) — cechy hold/digraph/WPM/Backspace + Random Forest / SVM / k-NN:
+
+```bash
+cd analysis
+pip install -r requirements.txt
+# pobierz all_events.csv z /admin, potem:
+python recognize_user.py --csv all_events.csv --model all
+# albo demo:
+python recognize_user.py --demo
+```
 
 ## Makro Word
 
